@@ -2,10 +2,11 @@ import type { KpiAsset } from "@/types/asset";
 import { Badge } from "@/components/ui/Badge";
 import { AffiliateList, BusinessQuestions, ModalSection } from "../parts";
 
+// KPI modal: business questions, metric IDs, calculation, visuals available, affiliate applicability
 export function KpiDetails({ asset }: { asset: KpiAsset }) {
   return (
     <>
-      <section className="mt-6 rounded-md bg-slate-50 p-4 ring-1 ring-inset ring-slate-100">
+      <section className="mt-6 rounded-md bg-slate-50 p-4">
         <h3 className="text-xs font-medium text-slate-500">Calculation</h3>
         <code className="mt-1.5 block whitespace-pre-wrap break-words font-mono text-[13px] leading-6 text-slate-900">
           {asset.calculation}
@@ -33,7 +34,7 @@ export function KpiDetails({ asset }: { asset: KpiAsset }) {
       </ModalSection>
 
       <ModalSection title="Affiliate applicability">
-        <AffiliateList applicable={asset.affiliates} />
+        <AffiliateList affiliates={asset.affiliates} />
       </ModalSection>
     </>
   );

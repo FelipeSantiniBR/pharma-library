@@ -6,16 +6,16 @@ import { formatDate, TYPE_LABEL } from "@/lib/format";
 import { useLibraryStore } from "@/store/library-store";
 import { AssetTypeIcon } from "@/components/ui/AssetTypeIcon";
 import { BookmarkIcon, LockIcon } from "@/components/ui/Icons";
-import { Highlight } from "./Highlight";
 
 type AssetCardProps = {
   asset: Asset;
   onOpen: (id: string) => void;
-  query?: string;
   variant?: "bordered" | "plain";
 };
 
-export function AssetCard({ asset, onOpen, query = "", variant = "bordered" }: AssetCardProps) {
+// The whole card is one button that opens the asset modal.
+// Lock badge = user has no access yet, bookmark = it's in their favorites.
+export function AssetCard({ asset, onOpen, variant = "bordered" }: AssetCardProps) {
   const isFavorite = useLibraryStore((s) => s.favorites.includes(asset.id));
 
   return (
@@ -45,14 +45,14 @@ export function AssetCard({ asset, onOpen, query = "", variant = "bordered" }: A
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-2">
           <span className="text-sm font-semibold leading-5 text-slate-900">
-            <Highlight text={asset.name} query={query} />
+            {asset.name}
           </span>
           {isFavorite && (
             <BookmarkIcon filled className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-700" aria-label="Favorite" />
           )}
         </span>
         <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-600">
-          <Highlight text={asset.description} query={query} />
+          {asset.description}
         </span>
         <span className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
           <span>{TYPE_LABEL[asset.type]}</span>

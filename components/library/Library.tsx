@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import type { Asset } from "@/types/asset";
+import { useRef, useState } from "react";
+import type { Asset, LibraryTab } from "@/types/asset";
 import { searchAssets } from "@/lib/search";
 import { TYPE_LABEL_PLURAL } from "@/lib/format";
-import { useLibraryUrlState } from "@/hooks/useLibraryUrlState";
+import { useAssetParam } from "@/hooks/useAssetParam";
 import { useLibraryStore } from "@/store/library-store";
 import { Button } from "@/components/ui/Button";
 import { RequestIcon } from "@/components/ui/Icons";
@@ -15,44 +15,44 @@ import { Tabs } from "./Tabs";
 import { AssetSection } from "./AssetSection";
 import { SearchResults } from "./SearchResults";
 
+// Main page. Holds the tab, the search text and which dialog is open.
+// The open asset lives in the URL instead, so "Copy link" can point straight to it.
 export function Library({ assets }: { assets: Asset[] }) {
-  const { tab, query, assetId, setQuery, setTab, openAsset, closeAsset, getAssetLink } = useLibraryUrlState();
+  const { assetId, openAsset, closeAsset, getAssetLink } = useAssetParam();
   const addRecentSearch = useLibraryStore((s) => s.addRecentSearch);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const [request, setRequest] = useState<{ open: boolean; assetId: string | null }>({ open: false, assetId: null });
+  const [tab, setTab] = useState<LibraryTab>("featured");
+  const [query, setQuery] = useState("");
+  // null = closed, "" = opened from the header (nothing preselected), id = opened from an asset
+  const [requestFor, setRequestFor] = useState<string | null>(null);
 
-  const byId = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets]);
-  const openedAsset = assetId ? byId[assetId] ?? null : null;
+  const openedAsset = assets.find((a) => a.id === assetId) ?? null;
 
-  const scoped = useMemo(() => (tab === "featured" ? assets : assets.filter((a) => a.type === tab)), [assets, tab]);
-  const results = useMemo(() => (query ? searchAssets(scoped, query) : []), [scoped, query]);
+  // Featured searches everything, the other tabs only search their own type
+  const scoped = tab === "featured" ? assets : assets.filter((a) => a.type === tab);
+  const results = searchAssets(scoped, query);
 
-  const featured = useMemo(() => assets.filter((a) => a.featured), [assets]);
-  const trending = useMemo(
-    () => assets.filter((a) => !a.featured).sort((a, b) => b.usageCount - a.usageCount),
-    [assets],
-  );
-  const byTypeSorted = useMemo(() => [...scoped].sort((a, b) => b.usageCount - a.usageCount), [scoped]);
+  const featured = assets.filter((a) => a.featured);
+  // Trending skips featured items so the two sections don't show the same cards
+  const trending = assets.filter((a) => !a.featured).sort((a, b) => b.usageCount - a.usageCount);
 
-  const openFromResults = useCallback(
-    (id: string) => {
-      if (query) addRecentSearch(query);
-      openAsset(id);
-    },
-    [query, addRecentSearch, openAsset],
-  );
+  // Only save a search as "recent" when the user actually opens something from it
+  const openFromResults = (id: string) => {
+    addRecentSearch(query);
+    openAsset(id);
+  };
 
-  const focusSearch = useCallback(() => {
+  const focusSearch = () => {
     searchRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     searchRef.current?.focus({ preventScroll: true });
-  }, []);
+  };
 
   return (
     <div className="min-h-dvh bg-slate-50">
       <div className="mx-auto max-w-3xl px-4 pb-24 pt-6 sm:px-6">
         <div className="flex justify-end">
-          <Button variant="secondary" size="sm" onClick={() => setRequest({ open: true, assetId: null })}>
+          <Button variant="secondary" size="sm" onClick={() => setRequestFor("")}>
             <RequestIcon className="h-3.5 w-3.5" />
             Request
           </Button>
@@ -68,19 +68,14 @@ export function Library({ assets }: { assets: Asset[] }) {
           <Tabs value={tab} onChange={setTab} />
         </div>
 
-        <main id="library-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-10">
-          {query ? (
+        <main className="mt-10">
+          {query.trim() ? (
             <SearchResults
               query={query}
               results={results}
               scopeLabel={tab === "featured" ? "the library" : TYPE_LABEL_PLURAL[tab]}
               onOpen={openFromResults}
-              onClear={() => {
-                setQuery("");
-                searchRef.current?.focus();
-              }}
-              onSearchAll={tab === "featured" ? undefined : () => setTab("featured")}
-              onRequest={() => setRequest({ open: true, assetId: null })}
+              onClear={() => setQuery("")}
             />
           ) : tab === "featured" ? (
             <>
@@ -105,10 +100,9 @@ export function Library({ assets }: { assets: Asset[] }) {
               key={tab}
               title={TYPE_LABEL_PLURAL[tab]}
               subtitle="Sorted by most used"
-              assets={byTypeSorted}
+              assets={[...scoped].sort((a, b) => b.usageCount - a.usageCount)}
               onOpen={openAsset}
               onTrySearch={focusSearch}
-              initialCount={6}
             />
           )}
         </main>
@@ -116,18 +110,17 @@ export function Library({ assets }: { assets: Asset[] }) {
 
       <AssetModal
         asset={openedAsset}
-        byId={byId}
+        assets={assets}
         onClose={closeAsset}
-        onOpen={openAsset}
-        onRequestAccess={(id) => setRequest({ open: true, assetId: id })}
+        onRequestAccess={(id) => setRequestFor(id)}
         getAssetLink={getAssetLink}
       />
 
       <RequestAccessDialog
-        open={request.open}
-        initialAssetId={request.assetId}
+        open={requestFor !== null}
+        initialAssetId={requestFor || null}
         assets={assets}
-        onClose={() => setRequest({ open: false, assetId: null })}
+        onClose={() => setRequestFor(null)}
       />
     </div>
   );

@@ -1,14 +1,5 @@
 import type { Asset } from "@/types/asset";
 
-export const AFFILIATES = [
-  "Brazil",
-  "Germany",
-  "Japan",
-  "United States",
-  "France",
-  "Canada",
-] as const;
-
 export const assets: Asset[] = [
   {
     id: "kpi-trx",

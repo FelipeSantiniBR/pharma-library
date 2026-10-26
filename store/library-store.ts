@@ -3,9 +3,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
+// User data only (favorites, recent searches, access requests), saved to localStorage.
+// The asset catalog itself comes from data/assets.ts and is passed down as props.
+
 export type AccessRequest = {
-  assetId: string | null;
-  subject?: string;
+  assetId: string | null; // null = something that isn't in the library yet
   reason: string;
   requestedAt: string;
 };
@@ -17,7 +19,6 @@ type LibraryState = {
 
   toggleFavorite: (id: string) => void;
   addRecentSearch: (term: string) => void;
-  removeRecentSearch: (term: string) => void;
   clearRecentSearches: () => void;
   addAccessRequest: (request: AccessRequest) => void;
 };
@@ -38,34 +39,25 @@ export const useLibraryStore = create<LibraryState>()(
             : [...state.favorites, id],
         })),
 
+      // Newest first, no duplicates, max 5
       addRecentSearch: (raw) => {
         const term = raw.trim();
         if (term.length < 2) return;
         set((state) => ({
-          recentSearches: [
-            term,
-            ...state.recentSearches.filter((t) => t.toLowerCase() !== term.toLowerCase()),
-          ].slice(0, MAX_RECENT_SEARCHES),
+          recentSearches: [term, ...state.recentSearches.filter((t) => t !== term)].slice(0, MAX_RECENT_SEARCHES),
         }));
       },
 
-      removeRecentSearch: (term) =>
-        set((state) => ({
-          recentSearches: state.recentSearches.filter((t) => t !== term),
-        })),
-
       clearRecentSearches: () => set({ recentSearches: [] }),
 
-      addAccessRequest: (request) =>
-        set((state) => ({ accessRequests: [...state.accessRequests, request] })),
+      addAccessRequest: (request) => set((state) => ({ accessRequests: [...state.accessRequests, request] })),
     }),
     {
       name: "pharma-library",
       storage: createJSONStorage(() => localStorage),
+      // localStorage doesn't exist on the server, so we load it after the first
+      // render (see StoreHydrator) to avoid a hydration mismatch
       skipHydration: true,
     },
   ),
 );
-
-export const useHasRequested = (assetId: string) =>
-  useLibraryStore((s) => s.accessRequests.some((r) => r.assetId === assetId));

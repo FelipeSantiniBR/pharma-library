@@ -1,14 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import type { Asset } from "@/types/asset";
 import { formatDate, formatNumber, TYPE_LABEL } from "@/lib/format";
-import { useHasRequested, useLibraryStore } from "@/store/library-store";
-import { toast } from "@/store/toast-store";
+import { useLibraryStore } from "@/store/library-store";
 import { Dialog } from "@/components/ui/Dialog";
 import { Badge } from "@/components/ui/Badge";
 import { Button, IconButton } from "@/components/ui/Button";
 import { AssetTypeIcon } from "@/components/ui/AssetTypeIcon";
-import { BookmarkIcon, ClockIcon, CloseIcon, LinkIcon, LockIcon } from "@/components/ui/Icons";
+import { BookmarkIcon, CheckIcon, CloseIcon, LinkIcon, LockIcon } from "@/components/ui/Icons";
 import { BusinessQuestions, StatsRow, type Stat } from "./parts";
 import { KpiDetails } from "./details/KpiDetails";
 import { DataVizDetails } from "./details/DataVizDetails";
@@ -17,63 +17,39 @@ import { StoryboardDetails } from "./details/StoryboardDetails";
 
 type AssetModalProps = {
   asset: Asset | null;
-  byId: Record<string, Asset>;
+  assets: Asset[];
   onClose: () => void;
-  onOpen: (id: string) => void;
   onRequestAccess: (assetId: string) => void;
   getAssetLink: (id: string) => string;
 };
 
-export function AssetModal({ asset, byId, onClose, onOpen, onRequestAccess, getAssetLink }: AssetModalProps) {
+// Base modal from the flow: header, description, stats, favorite and copy link are
+// shared by every asset type. The middle part changes per type (see AssetDetails).
+export function AssetModal({ asset, ...props }: AssetModalProps) {
   return (
-    <Dialog open={asset !== null} onClose={onClose} labelledBy="asset-modal-title" className="max-w-2xl">
-      {asset && (
-        <ModalContent
-          key={asset.id}
-          asset={asset}
-          byId={byId}
-          onClose={onClose}
-          onOpen={onOpen}
-          onRequestAccess={onRequestAccess}
-          getAssetLink={getAssetLink}
-        />
-      )}
+    <Dialog open={asset !== null} onClose={props.onClose} labelledBy="asset-modal-title" className="max-w-2xl">
+      {/* key resets local state (e.g. "Copied") when another asset is opened */}
+      {asset && <ModalContent key={asset.id} asset={asset} {...props} />}
     </Dialog>
   );
 }
 
-function ModalContent({
-  asset,
-  byId,
-  onClose,
-  onOpen,
-  onRequestAccess,
-  getAssetLink,
-}: Omit<AssetModalProps, "asset"> & { asset: Asset }) {
+function ModalContent({ asset, assets, onClose, onRequestAccess, getAssetLink }: AssetModalProps & { asset: Asset }) {
   const isFavorite = useLibraryStore((s) => s.favorites.includes(asset.id));
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
-  const requested = useHasRequested(asset.id);
+  const requested = useLibraryStore((s) => s.accessRequests.some((r) => r.assetId === asset.id));
+  const [copied, setCopied] = useState(false);
 
   const copyLink = async () => {
-    const url = getAssetLink(asset.id);
-    try {
-      await navigator.clipboard.writeText(url);
-      toast("Link copied");
-    } catch {
-      window.prompt("Copy this link:", url);
-    }
-  };
-
-  const onFavorite = () => {
-    toggleFavorite(asset.id);
-    toast(isFavorite ? "Removed from favorites" : "Added to favorites");
+    await navigator.clipboard.writeText(getAssetLink(asset.id));
+    setCopied(true);
   };
 
   return (
     <div className="relative px-5 pb-5 pt-10 sm:px-8">
       <div className="absolute right-3 top-3 flex gap-1">
-        <IconButton label="Copy link" onClick={copyLink}>
-          <LinkIcon className="h-4 w-4" />
+        <IconButton label={copied ? "Link copied" : "Copy link"} onClick={copyLink}>
+          {copied ? <CheckIcon className="h-4 w-4" /> : <LinkIcon className="h-4 w-4" />}
         </IconButton>
         <IconButton label="Close" onClick={onClose}>
           <CloseIcon className="h-4 w-4" />
@@ -92,7 +68,7 @@ function ModalContent({
         </div>
         <p className="mt-1 text-xs text-slate-500">{asset.subtitle}</p>
         <p className="mx-auto mt-4 max-w-prose text-sm leading-6 text-slate-700">{asset.description}</p>
-        <ul className="mt-3 flex flex-wrap justify-center gap-1.5" aria-label="Tags">
+        <ul className="mt-3 flex flex-wrap justify-center gap-1.5">
           {asset.tags.map((tag) => (
             <li key={tag}>
               <Badge tone="outline">#{tag.replace(/\s+/g, "")}</Badge>
@@ -103,17 +79,17 @@ function ModalContent({
 
       <StatsRow stats={getStats(asset)} />
 
+      {/* Without access we still show the business questions, so the user can
+          tell if the asset is worth requesting */}
       {asset.hasAccess ? (
-        <AssetDetails asset={asset} byId={byId} onOpen={onOpen} />
+        <AssetDetails asset={asset} assets={assets} />
       ) : (
         <>
-          <div className="mt-6 flex flex-col items-center rounded-md bg-slate-50 px-6 py-8 text-center ring-1 ring-inset ring-slate-100">
+          <div className="mt-6 flex flex-col items-center rounded-md bg-slate-50 px-6 py-8 text-center">
             <LockIcon className="h-6 w-6 text-slate-400" />
-            <p className="mt-2 text-sm font-medium text-slate-900">You don’t have access to this {TYPE_LABEL[asset.type].toLowerCase()}</p>
-            <p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">
-              {requested
-                ? "Your request is with the asset owner. You’ll be able to open it once it’s approved."
-                : "Request access and tell the owner why you need it. You can still read the business questions below."}
+            <p className="mt-2 text-sm font-medium text-slate-900">You don’t have access to this asset</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {requested ? "Your request was sent to the owner." : "Request access and tell the owner why you need it."}
             </p>
           </div>
           <BusinessQuestions questions={asset.businessQuestions} />
@@ -121,40 +97,35 @@ function ModalContent({
       )}
 
       <footer className="sticky bottom-0 -mx-5 mt-6 flex gap-2 bg-white px-5 pt-3 sm:-mx-8 sm:px-8">
-        {asset.hasAccess ? (
-          <Button className="flex-1" onClick={onFavorite} aria-pressed={isFavorite}>
-            <BookmarkIcon filled={isFavorite} className="h-4 w-4" />
-            {isFavorite ? "Remove from favorites" : "Favorite item"}
+        <Button className="flex-1" variant={asset.hasAccess ? "primary" : "ghost"} onClick={() => toggleFavorite(asset.id)}>
+          <BookmarkIcon filled={isFavorite} className="h-4 w-4" />
+          {isFavorite ? "Remove from favorites" : "Favorite item"}
+        </Button>
+        {!asset.hasAccess && (
+          <Button className="flex-1" disabled={requested} onClick={() => onRequestAccess(asset.id)}>
+            <LockIcon className="h-4 w-4" />
+            {requested ? "Access requested" : "Request access"}
           </Button>
-        ) : (
-          <>
-            <Button variant="ghost" onClick={onFavorite} aria-pressed={isFavorite} className="ring-1 ring-slate-200">
-              <BookmarkIcon filled={isFavorite} className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only">{isFavorite ? "Saved" : "Favorite"}</span>
-            </Button>
-            <Button className="flex-1" disabled={requested} onClick={() => onRequestAccess(asset.id)}>
-              {requested ? <ClockIcon className="h-4 w-4" /> : <LockIcon className="h-4 w-4" />}
-              {requested ? "Access requested" : "Request access"}
-            </Button>
-          </>
         )}
       </footer>
     </div>
   );
 }
 
-function AssetDetails({ asset, byId, onOpen }: { asset: Asset; byId: Record<string, Asset>; onOpen: (id: string) => void }) {
-  const resolve = (ids: string[]) => ids.map((id) => byId[id]).filter(Boolean);
+// Picks the detail panel for each asset type. The `never` check makes TypeScript
+// complain here if a new asset type is added and not handled.
+function AssetDetails({ asset, assets }: { asset: Asset; assets: Asset[] }) {
+  const findMany = (ids: string[]) => assets.filter((a) => ids.includes(a.id));
 
   switch (asset.type) {
     case "kpi":
       return <KpiDetails asset={asset} />;
     case "dataviz":
-      return <DataVizDetails asset={asset} related={resolve(asset.applicableKpiIds)} onOpen={onOpen} />;
+      return <DataVizDetails asset={asset} kpis={findMany(asset.applicableKpiIds)} />;
     case "layout":
-      return <LayoutDetails asset={asset} related={resolve(asset.kpiIds)} onOpen={onOpen} />;
+      return <LayoutDetails asset={asset} kpis={findMany(asset.kpiIds)} />;
     case "storyboard":
-      return <StoryboardDetails asset={asset} byId={byId} onOpen={onOpen} />;
+      return <StoryboardDetails asset={asset} assets={assets} />;
     default: {
       const never: never = asset;
       return never;
@@ -162,9 +133,11 @@ function AssetDetails({ asset, byId, onOpen }: { asset: Asset; byId: Record<stri
   }
 }
 
+// The wireframe shows 4 stats. "Used" and "Last updated" are always there,
+// the two in the middle depend on the asset type.
 function getStats(asset: Asset): Stat[] {
-  const used: Stat = { label: "Used", value: formatNumber(asset.usageCount), hint: "Times this asset was added to a layout or report" };
-  const updated: Stat = { label: "Last updated", value: formatDate(asset.updatedAt) };
+  const used = { label: "Used", value: formatNumber(asset.usageCount) };
+  const updated = { label: "Last updated", value: formatDate(asset.updatedAt) };
 
   switch (asset.type) {
     case "kpi":
@@ -172,7 +145,7 @@ function getStats(asset: Asset): Stat[] {
     case "dataviz":
       return [used, { label: "Chart", value: asset.chartType === "bar" ? "Bar" : "Line" }, { label: "KPIs", value: String(asset.applicableKpiIds.length) }, updated];
     case "layout":
-      return [used, { label: "Type", value: asset.layoutType, hint: "Universal layouts work for every affiliate" }, { label: "Pages", value: String(asset.pages) }, updated];
+      return [used, { label: "Type", value: asset.layoutType }, { label: "Pages", value: String(asset.pages) }, updated];
     case "storyboard":
       return [used, { label: "Slides", value: String(asset.slides) }, { label: "Affiliates", value: String(asset.affiliates.length) }, updated];
   }

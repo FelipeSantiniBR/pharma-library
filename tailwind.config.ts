@@ -21,14 +21,9 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(8px) scale(0.98)" },
           to: { opacity: "1", transform: "translateY(0) scale(1)" },
         },
-        "toast-in": {
-          from: { opacity: "0", transform: "translateY(8px)" },
-          to: { opacity: "1", transform: "translateY(0)" },
-        },
       },
       animation: {
         "dialog-in": "dialog-in 160ms ease-out",
-        "toast-in": "toast-in 160ms ease-out",
       },
     },
   },

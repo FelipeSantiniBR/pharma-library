@@ -49,9 +49,6 @@ export const RequestIcon = (p: IconProps) => (
 export const CheckIcon = (p: IconProps) => (
   <Base {...p}><path d="m5 12 5 5L20 7" /></Base>
 );
-export const InfoIcon = (p: IconProps) => (
-  <Base {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></Base>
-);
 export const ChevronIcon = (p: IconProps) => (
   <Base {...p}><path d="m6 9 6 6 6-6" /></Base>
 );

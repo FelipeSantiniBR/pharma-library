@@ -16,6 +16,8 @@ type AssetSectionProps = {
   initialCount?: number;
 };
 
+// A titled grid that shows the first few assets and expands on "Show more".
+// Once everything is visible we point the user to search instead.
 export function AssetSection({
   title,
   subtitle,
